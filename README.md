@@ -1,5 +1,7 @@
 # Context Based Wordlist Generation
 
+A modular tool for generating and managing wordlists used in dictionary attacks and security audits.
+
 ## Development
 
 ### Installation
