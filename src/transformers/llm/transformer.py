@@ -4,10 +4,9 @@ from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional
 
 from src.transformers.base import Transformer
-from src.transformers.llm.client import GoogleAIClient
+from src.transformers.llm.google_api_client import GoogleAIClient
 from src.utils.env import find_project_root
 
-# Set up logging
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
@@ -34,51 +33,50 @@ class LLMTransformer(Transformer):
                 - system_instruction: Optional system instruction (default: None)
                 - batch_size: Maximum words to process in one batch (default: 100)
                 - max_retries: Maximum number of retries on failure (default: 3)
+                - verbose_logging: Whether to enable verbose logging (default: False)
         """
         self.client = None
         super().__init__(config)
 
     def _validate_config(self) -> None:
         """Validate the configuration for LLM transformer."""
-        # Set default configuration values
+
         self.config.setdefault("api_key", os.environ.get("GOOGLE_API_KEY"))
         self.config.setdefault("model_name", "gemini-2.0-flash")
         self.config.setdefault("system_instruction", None)
         self.config.setdefault("batch_size", 100)
         self.config.setdefault("max_retries", 3)
+        self.config.setdefault("verbose_logging", False)
 
-        # Check for API key
         if not self.config["api_key"]:
             logger.warning("No API key provided in config or environment")
             raise ValueError(
                 "API key is required. Set it in config or GOOGLE_API_KEY environment variable"
             )
 
-        # Find prompt path
         self._setup_prompt_path()
 
-        # Initialize the LLM client
         self._initialize_client()
 
     def _setup_prompt_path(self) -> None:
         """Set up the prompt path from config or look in standard locations."""
-        # Look for prompt in standard locations
+
+        possible_paths = []
+
+        if "prompt_path" in self.config:
+            possible_paths.append(Path(self.config["prompt_path"]))
+
+        project_root = find_project_root()
+        if project_root:
+            possible_paths.append(
+                project_root / "resources" / "prompts" / "wordlist-generation.md"
+            )
+
         prompt_path = None
-
-        # Check for prompt_path in config
-        if "prompt_path" in self.config and Path(self.config["prompt_path"]).exists():
-            prompt_path = Path(self.config["prompt_path"])
-        else:
-            # Use the utility function to find the project root
-            project_root = find_project_root()
-
-            if (project_root / ".env").exists():
-                # Try resources/prompts directory
-                resources_path = (
-                    project_root / "resources" / "prompts" / "wordlist-generation.md"
-                )
-                if resources_path.exists():
-                    prompt_path = resources_path
+        for path in possible_paths:
+            if path.exists():
+                prompt_path = path
+                break
 
         if prompt_path:
             logger.info(f"Using prompt template: {prompt_path}")
@@ -93,6 +91,7 @@ class LLMTransformer(Transformer):
                 api_key=self.config["api_key"],
                 model_name=self.config["model_name"],
                 prompt_path=self.config.get("prompt_path"),
+                verbose_logging=self.config["verbose_logging"],
             )
             logger.info("GoogleAIClient initialized successfully")
         except Exception as e:
@@ -115,10 +114,8 @@ class LLMTransformer(Transformer):
         if not words:
             return
 
-        # Validate input words
         self._validate_input_words(words)
 
-        # Process words in batches to avoid exceeding token limits
         batch_size = self.config["batch_size"]
         for i in range(0, len(words), batch_size):
             batch = words[i : i + batch_size]
@@ -154,20 +151,16 @@ class LLMTransformer(Transformer):
             ValueError: If the batch processing fails
         """
         try:
-            # Use the words as context for the LLM
             context = self._create_context(batch)
 
-            # Generate words using the LLM
             generated_words = self.client.generate_wordlist(
                 context=context,
                 system_instruction=self.config["system_instruction"],
                 max_retries=self.config["max_retries"],
             )
 
-            # Validate generated words
             validated_words = self._validate_generated_words(generated_words)
 
-            # Return generated words
             for word in validated_words:
                 yield word
 
@@ -206,10 +199,8 @@ class LLMTransformer(Transformer):
         if not isinstance(words, list):
             raise ValueError(f"Expected a list of words but got {type(words)}")
 
-        # Filter out any non-string values
         string_words = [word for word in words if isinstance(word, str)]
 
-        # Filter out empty strings
         valid_words = [word for word in string_words if word.strip()]
 
         if len(valid_words) < len(words):
