@@ -5,6 +5,7 @@ from typing import Any, Dict, Iterator, List, Optional
 
 from src.transformers.base import Transformer
 from src.transformers.llm.client import GoogleAIClient
+from src.utils.env import find_project_root
 
 # Set up logging
 logging.basicConfig(
@@ -68,13 +69,8 @@ class LLMTransformer(Transformer):
         if "prompt_path" in self.config and Path(self.config["prompt_path"]).exists():
             prompt_path = Path(self.config["prompt_path"])
         else:
-            # Try to find the prompt in standard locations - project root is where .env is located
-            project_root = Path.cwd()
-            while (
-                not (project_root / ".env").exists()
-                and project_root != project_root.parent
-            ):
-                project_root = project_root.parent
+            # Use the utility function to find the project root
+            project_root = find_project_root()
 
             if (project_root / ".env").exists():
                 # Try resources/prompts directory

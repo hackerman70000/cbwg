@@ -2,10 +2,7 @@ import json
 import logging
 import os
 import unittest
-from pathlib import Path
 from unittest.mock import MagicMock, patch
-
-from dotenv import load_dotenv
 
 # Configure logging
 logging.basicConfig(
@@ -13,14 +10,15 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Import the environment utility
+# Import the environment utility
+from src.utils.env import find_project_root, load_environment
+
 # Load environment variables once
-project_root = Path(__file__).resolve().parent.parent.parent.parent
-env_path = project_root / ".env"
-if env_path.exists():
-    logger.info(f"Loading environment variables from {env_path}")
-    load_dotenv(env_path)
-else:
-    logger.warning(f"No .env file found at {env_path}")
+load_environment()
+
+# Get project root for output directory paths
+project_root = find_project_root()
 
 # Import the necessary modules
 from src.transformers.llm.client import GoogleAIClient

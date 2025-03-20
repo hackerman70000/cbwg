@@ -140,6 +140,41 @@ class GoogleAIClient:
         logger.info(prompt)
         logger.info("=============================")
 
+    def _retry_operation(
+        self, operation_name: str, operation_func: callable, max_retries: int
+    ) -> Any:
+        """
+        Retry an operation with multiple attempts.
+
+        Args:
+            operation_name: Name of the operation for logging
+            operation_func: Function to execute
+            max_retries: Maximum number of retry attempts
+
+        Returns:
+            Any: The result of the operation
+
+        Raises:
+            RuntimeError: If the operation fails after all retries
+        """
+        retry_count = 0
+        last_error = None
+
+        while retry_count < max_retries:
+            try:
+                logger.debug(f"Executing {operation_name}")
+                return operation_func()
+            except Exception as e:
+                last_error = e
+                retry_count += 1
+                logger.warning(
+                    f"{operation_name} attempt {retry_count} failed: {str(e)}"
+                )
+
+        # If we've exhausted retries
+        logger.error(f"Failed to execute {operation_name} after {max_retries} attempts")
+        raise RuntimeError(f"Failed to execute {operation_name}: {str(last_error)}")
+
     def generate_wordlist(
         self,
         context: Union[str, Dict[str, Any], List[str]],
@@ -169,8 +204,20 @@ class GoogleAIClient:
         # Configure the request
         config = self._create_request_config(system_instruction)
 
+        # Define the request operation
+        def execute_request():
+            logger.debug(f"Sending request to {self.model_name}")
+            response = self.client.models.generate_content(
+                model=self.model_name, config=config, contents=[prompt]
+            )
+            return self._process_response(response.text)
+
         # Execute with retries
-        return self._execute_with_retries(prompt, config, max_retries)
+        return self._retry_operation(
+            operation_name="word list generation",
+            operation_func=execute_request,
+            max_retries=max_retries,
+        )
 
     def _log_context_data(self, context: Union[str, Dict[str, Any], List[str]]) -> None:
         """
@@ -207,45 +254,6 @@ class GoogleAIClient:
             system_instruction=system_instruction
             or "Always respond only with a JSON array of strings. No explanations.",
         )
-
-    def _execute_with_retries(
-        self, prompt: str, config: types.GenerateContentConfig, max_retries: int
-    ) -> List[str]:
-        """
-        Execute the LLM request with retries.
-
-        Args:
-            prompt: The prompt to send
-            config: The request configuration
-            max_retries: Maximum number of retries
-
-        Returns:
-            List[str]: The generated wordlist
-
-        Raises:
-            RuntimeError: If the request fails after all retries
-        """
-        retry_count = 0
-        last_error = None
-
-        while retry_count < max_retries:
-            try:
-                logger.debug(f"Sending request to {self.model_name}")
-                response = self.client.models.generate_content(
-                    model=self.model_name, config=config, contents=[prompt]
-                )
-
-                # Process the response
-                return self._process_response(response.text)
-
-            except Exception as e:
-                last_error = e
-                retry_count += 1
-                logger.warning(f"Request attempt {retry_count} failed: {str(e)}")
-
-        # If we've exhausted retries
-        logger.error(f"Failed to generate word list after {max_retries} attempts")
-        raise RuntimeError(f"Failed to generate word list: {str(last_error)}")
 
     def _process_response(self, response_text: str) -> List[str]:
         """
@@ -375,32 +383,22 @@ class GoogleAIClient:
             or "Always respond only with valid JSON. No explanations.",
         )
 
-        # Execute with retries for metadata
-        retry_count = 0
-        last_error = None
+        # Define the request operation
+        def execute_request():
+            logger.debug(f"Sending request to {self.model_name}")
+            if self.verbose_logging:
+                logger.info("Sending request to generate wordlist with metadata")
 
-        while retry_count < max_retries:
-            try:
-                logger.debug(f"Sending request to {self.model_name}")
-                if self.verbose_logging:
-                    logger.info("Sending request to generate wordlist with metadata")
+            response = self.client.models.generate_content(
+                model=self.model_name, config=config, contents=[prompt]
+            )
+            return self._process_metadata_response(response.text)
 
-                response = self.client.models.generate_content(
-                    model=self.model_name, config=config, contents=[prompt]
-                )
-
-                # Process the metadata response
-                return self._process_metadata_response(response.text)
-
-            except Exception as e:
-                last_error = e
-                retry_count += 1
-                logger.warning(f"Request attempt {retry_count} failed: {str(e)}")
-
-        # If we've exhausted retries
-        logger.error(f"Failed to generate word list after {max_retries} attempts")
-        raise RuntimeError(
-            f"Failed to generate word list with metadata: {str(last_error)}"
+        # Execute with retries
+        return self._retry_operation(
+            operation_name="wordlist with metadata generation",
+            operation_func=execute_request,
+            max_retries=max_retries,
         )
 
     def _process_metadata_response(self, response_text: str) -> Dict[str, Any]:
