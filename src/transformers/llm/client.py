@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 
+# Load environment variables once at module level
 load_dotenv()
 
 logger = logging.getLogger(__name__)
@@ -39,12 +40,7 @@ class GoogleAIClient:
             timeout: Request timeout in seconds
             verbose_logging: Whether to log detailed information including full prompts
         """
-        self.api_key = api_key or os.environ.get("GOOGLE_API_KEY")
-        if not self.api_key:
-            raise ValueError(
-                "API key must be provided or set as GOOGLE_API_KEY environment variable"
-            )
-
+        self.api_key = self._get_api_key(api_key)
         self.model_name = model_name
         self.timeout = timeout
         self.verbose_logging = verbose_logging
@@ -53,6 +49,26 @@ class GoogleAIClient:
         self.static_prompt = ""
         if prompt_path:
             self.load_prompt_template(prompt_path)
+
+    def _get_api_key(self, api_key: Optional[str]) -> str:
+        """
+        Get the API key from the provided parameter or environment variable.
+
+        Args:
+            api_key: The API key provided to the constructor
+
+        Returns:
+            str: The API key to use
+
+        Raises:
+            ValueError: If no API key is available
+        """
+        key = api_key or os.environ.get("GOOGLE_API_KEY")
+        if not key:
+            raise ValueError(
+                "API key must be provided or set as GOOGLE_API_KEY environment variable"
+            )
+        return key
 
     def load_prompt_template(self, prompt_path: Union[str, Path]) -> None:
         """
@@ -86,21 +102,43 @@ class GoogleAIClient:
         Returns:
             str: The complete prompt to send to the LLM
         """
-        if isinstance(context, dict):
-            context_str = json.dumps(context, ensure_ascii=False, indent=2)
-        elif isinstance(context, list):
-            context_str = "\n".join(context)
-        else:
-            context_str = str(context)
-
+        context_str = self._convert_context_to_string(context)
         full_prompt = f"{self.static_prompt}\n\n{context_str}"
 
         if self.verbose_logging:
-            logger.info("===== FULL PROMPT TO LLM =====")
-            logger.info(full_prompt)
-            logger.info("=============================")
+            self._log_prompt(full_prompt)
 
         return full_prompt
+
+    def _convert_context_to_string(
+        self, context: Union[str, Dict[str, Any], List[str]]
+    ) -> str:
+        """
+        Convert context data to a string format.
+
+        Args:
+            context: Context data in various formats
+
+        Returns:
+            str: String representation of the context
+        """
+        if isinstance(context, dict):
+            return json.dumps(context, ensure_ascii=False, indent=2)
+        elif isinstance(context, list):
+            return "\n".join(context)
+        else:
+            return str(context)
+
+    def _log_prompt(self, prompt: str) -> None:
+        """
+        Log the full prompt if verbose logging is enabled.
+
+        Args:
+            prompt: The full prompt to log
+        """
+        logger.info("===== FULL PROMPT TO LLM =====")
+        logger.info(prompt)
+        logger.info("=============================")
 
     def generate_wordlist(
         self,
@@ -125,24 +163,68 @@ class GoogleAIClient:
         """
         prompt = self._prepare_prompt(context)
 
-        # Log the context being sent (compact form)
-        if self.verbose_logging:
-            logger.info("===== CONTEXT DATA =====")
-            if isinstance(context, dict):
-                logger.info(f"Context (dict): {json.dumps(context, indent=2)}")
-            else:
-                logger.info(f"Context: {context}")
-            logger.info("=======================")
+        # Log context data in compact form
+        self._log_context_data(context)
 
         # Configure the request
-        config = types.GenerateContentConfig(
+        config = self._create_request_config(system_instruction)
+
+        # Execute with retries
+        return self._execute_with_retries(prompt, config, max_retries)
+
+    def _log_context_data(self, context: Union[str, Dict[str, Any], List[str]]) -> None:
+        """
+        Log the context data if verbose logging is enabled.
+
+        Args:
+            context: The context data to log
+        """
+        if not self.verbose_logging:
+            return
+
+        logger.info("===== CONTEXT DATA =====")
+        if isinstance(context, dict):
+            logger.info(f"Context (dict): {json.dumps(context, indent=2)}")
+        else:
+            logger.info(f"Context: {context}")
+        logger.info("=======================")
+
+    def _create_request_config(
+        self, system_instruction: Optional[str] = None
+    ) -> types.GenerateContentConfig:
+        """
+        Create the request configuration for the LLM.
+
+        Args:
+            system_instruction: Optional system instruction to use
+
+        Returns:
+            types.GenerateContentConfig: The configured request
+        """
+        return types.GenerateContentConfig(
             temperature=0.2,  # Lower temperature for more deterministic results
             max_output_tokens=8192,  # Adjust based on expected response size
             system_instruction=system_instruction
             or "Always respond only with a JSON array of strings. No explanations.",
         )
 
-        # Execute with retries
+    def _execute_with_retries(
+        self, prompt: str, config: types.GenerateContentConfig, max_retries: int
+    ) -> List[str]:
+        """
+        Execute the LLM request with retries.
+
+        Args:
+            prompt: The prompt to send
+            config: The request configuration
+            max_retries: Maximum number of retries
+
+        Returns:
+            List[str]: The generated wordlist
+
+        Raises:
+            RuntimeError: If the request fails after all retries
+        """
         retry_count = 0
         last_error = None
 
@@ -154,60 +236,7 @@ class GoogleAIClient:
                 )
 
                 # Process the response
-                response_text = response.text
-                try:
-                    # Extract JSON from the response if it's embedded in markdown
-                    if "```json" in response_text and "```" in response_text:
-                        json_text = (
-                            response_text.split("```json")[1].split("```")[0].strip()
-                        )
-                        if self.verbose_logging:
-                            logger.info("Extracted JSON from markdown code block")
-                    elif "```" in response_text:
-                        json_text = (
-                            response_text.split("```")[1].split("```")[0].strip()
-                        )
-                        if self.verbose_logging:
-                            logger.info("Extracted text from code block")
-                    else:
-                        json_text = response_text
-
-                    if self.verbose_logging:
-                        logger.info("===== RAW RESPONSE =====")
-                        logger.info(
-                            response_text[:500]
-                            + ("..." if len(response_text) > 500 else "")
-                        )
-                        logger.info("=======================")
-                        logger.info("===== EXTRACTED JSON TEXT =====")
-                        logger.info(
-                            json_text[:500] + ("..." if len(json_text) > 500 else "")
-                        )
-                        logger.info("==============================")
-
-                    # Parse the JSON
-                    json_data = json.loads(json_text)
-
-                    # Extract the word list
-                    if isinstance(json_data, list):
-                        if self.verbose_logging:
-                            logger.info(f"Received list with {len(json_data)} words")
-                        return json_data
-                    elif isinstance(json_data, dict) and "words" in json_data:
-                        if self.verbose_logging:
-                            logger.info(
-                                f"Received dict with {len(json_data['words'])} words"
-                            )
-                        return json_data["words"]
-                    else:
-                        error_msg = "Response JSON doesn't contain a word list"
-                        logger.error(error_msg)
-                        raise ValueError(error_msg)
-
-                except json.JSONDecodeError as e:
-                    logger.error(f"Failed to parse response as JSON: {str(e)}")
-                    logger.debug(f"Response text: {response_text}")
-                    raise ValueError(f"Response is not valid JSON: {str(e)}")
+                return self._process_response(response.text)
 
             except Exception as e:
                 last_error = e
@@ -217,6 +246,102 @@ class GoogleAIClient:
         # If we've exhausted retries
         logger.error(f"Failed to generate word list after {max_retries} attempts")
         raise RuntimeError(f"Failed to generate word list: {str(last_error)}")
+
+    def _process_response(self, response_text: str) -> List[str]:
+        """
+        Process the response from the LLM.
+
+        Args:
+            response_text: The raw response text
+
+        Returns:
+            List[str]: The extracted wordlist
+
+        Raises:
+            ValueError: If the response cannot be parsed or doesn't contain words
+        """
+        try:
+            # Extract JSON from the response if it's embedded in markdown
+            json_text = self._extract_json_from_response(response_text)
+
+            if self.verbose_logging:
+                self._log_response_data(response_text, json_text)
+
+            # Parse the JSON and extract word list
+            return self._extract_wordlist_from_json(json_text)
+
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse response as JSON: {str(e)}")
+            logger.debug(f"Response text: {response_text}")
+            raise ValueError(f"Response is not valid JSON: {str(e)}")
+
+    def _extract_json_from_response(self, response_text: str) -> str:
+        """
+        Extract JSON content from the response text.
+
+        Args:
+            response_text: The raw response text
+
+        Returns:
+            str: The extracted JSON text
+        """
+        if "```json" in response_text and "```" in response_text:
+            json_text = response_text.split("```json")[1].split("```")[0].strip()
+            if self.verbose_logging:
+                logger.info("Extracted JSON from markdown code block")
+        elif "```" in response_text:
+            json_text = response_text.split("```")[1].split("```")[0].strip()
+            if self.verbose_logging:
+                logger.info("Extracted text from code block")
+        else:
+            json_text = response_text
+
+        return json_text
+
+    def _log_response_data(self, response_text: str, json_text: str) -> None:
+        """
+        Log the response data if verbose logging is enabled.
+
+        Args:
+            response_text: The raw response text
+            json_text: The extracted JSON text
+        """
+        logger.info("===== RAW RESPONSE =====")
+        logger.info(response_text[:500] + ("..." if len(response_text) > 500 else ""))
+        logger.info("=======================")
+        logger.info("===== EXTRACTED JSON TEXT =====")
+        logger.info(json_text[:500] + ("..." if len(json_text) > 500 else ""))
+        logger.info("==============================")
+
+    def _extract_wordlist_from_json(self, json_text: str) -> List[str]:
+        """
+        Extract wordlist from JSON data.
+
+        Args:
+            json_text: The JSON text to parse
+
+        Returns:
+            List[str]: The extracted wordlist
+
+        Raises:
+            ValueError: If the JSON doesn't contain a word list
+        """
+        # Parse the JSON
+        json_data = json.loads(json_text)
+
+        # Extract the word list
+        if isinstance(json_data, list):
+            if self.verbose_logging:
+                logger.info(f"Received list with {len(json_data)} words")
+            return json_data
+        elif isinstance(json_data, dict) and "words" in json_data:
+            if self.verbose_logging:
+                logger.info(f"Received dict with {len(json_data['words'])} words")
+            return json_data["words"]
+        else:
+            error_msg = "Response JSON doesn't contain a word list"
+            logger.error(error_msg)
+            raise ValueError(error_msg)
 
     def generate_wordlist_with_metadata(
         self,
@@ -242,7 +367,7 @@ class GoogleAIClient:
         # Prepare the prompt
         prompt = self._prepare_prompt(context)
 
-        # Configure the request
+        # Configure the request with metadata-specific instruction
         config = types.GenerateContentConfig(
             temperature=0.2,
             max_output_tokens=8192,
@@ -250,7 +375,7 @@ class GoogleAIClient:
             or "Always respond only with valid JSON. No explanations.",
         )
 
-        # Execute with retries
+        # Execute with retries for metadata
         retry_count = 0
         last_error = None
 
@@ -264,41 +389,8 @@ class GoogleAIClient:
                     model=self.model_name, config=config, contents=[prompt]
                 )
 
-                # Process the response
-                response_text = response.text
-                try:
-                    # Extract JSON from the response if it's embedded in markdown
-                    if "```json" in response_text and "```" in response_text:
-                        json_text = (
-                            response_text.split("```json")[1].split("```")[0].strip()
-                        )
-                    elif "```" in response_text:
-                        json_text = (
-                            response_text.split("```")[1].split("```")[0].strip()
-                        )
-                    else:
-                        json_text = response_text
-
-                    if self.verbose_logging:
-                        logger.info("===== RAW METADATA RESPONSE =====")
-                        logger.info(
-                            response_text[:500]
-                            + ("..." if len(response_text) > 500 else "")
-                        )
-                        logger.info("================================")
-
-                    # Parse the JSON
-                    result = json.loads(json_text)
-                    if self.verbose_logging:
-                        logger.info(
-                            f"Successfully parsed JSON response with keys: {list(result.keys())}"
-                        )
-                    return result
-
-                except json.JSONDecodeError as e:
-                    logger.error(f"Failed to parse response as JSON: {str(e)}")
-                    logger.debug(f"Response text: {response_text}")
-                    raise ValueError(f"Response is not valid JSON: {str(e)}")
+                # Process the metadata response
+                return self._process_metadata_response(response.text)
 
             except Exception as e:
                 last_error = e
@@ -307,4 +399,48 @@ class GoogleAIClient:
 
         # If we've exhausted retries
         logger.error(f"Failed to generate word list after {max_retries} attempts")
-        raise RuntimeError(f"Failed to generate word list: {str(last_error)}")
+        raise RuntimeError(
+            f"Failed to generate word list with metadata: {str(last_error)}"
+        )
+
+    def _process_metadata_response(self, response_text: str) -> Dict[str, Any]:
+        """
+        Process metadata response from the LLM.
+
+        Args:
+            response_text: The raw response text
+
+        Returns:
+            Dict[str, Any]: Dictionary containing the parsed metadata
+
+        Raises:
+            ValueError: If the response cannot be parsed as JSON
+        """
+        try:
+            # Extract JSON from the response
+            json_text = self._extract_json_from_response(response_text)
+
+            if self.verbose_logging:
+                logger.info("===== RAW METADATA RESPONSE =====")
+                logger.info(
+                    response_text[:500] + ("..." if len(response_text) > 500 else "")
+                )
+                logger.info("================================")
+
+            # Parse the JSON
+            result = json.loads(json_text)
+            if self.verbose_logging:
+                logger.info(
+                    f"Successfully parsed JSON response with keys: {list(result.keys())}"
+                )
+
+            # Validate metadata structure
+            if not isinstance(result, dict):
+                raise ValueError("Metadata response must be a dictionary")
+
+            return result
+
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse metadata response as JSON: {str(e)}")
+            logger.debug(f"Response text: {response_text}")
+            raise ValueError(f"Metadata response is not valid JSON: {str(e)}")

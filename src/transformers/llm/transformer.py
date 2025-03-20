@@ -1,78 +1,16 @@
 import logging
 import os
-import sys
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional
+
+from src.transformers.base import Transformer
+from src.transformers.llm.client import GoogleAIClient
 
 # Set up logging
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
-
-
-# Find the project root directory (where .env is located)
-def find_project_root():
-    current_path = Path(__file__).resolve()
-    while not (current_path / ".env").exists() and current_path != current_path.parent:
-        current_path = current_path.parent
-
-    if (current_path / ".env").exists():
-        return current_path
-    return None
-
-
-# Load environment variables from .env file
-try:
-    from dotenv import load_dotenv
-
-    project_root = find_project_root()
-    if project_root:
-        logger.info(f"Loading .env from: {project_root / '.env'}")
-        load_dotenv(project_root / ".env")
-        logger.info("Environment variables loaded from .env file")
-    else:
-        logger.warning("No .env file found in any parent directory")
-except ImportError:
-    logger.warning(
-        "python-dotenv package not installed, environment variables may not be loaded"
-    )
-
-# The rest of your transformer module imports and code
-try:
-    # Import the base Transformer class
-    # Assuming it can be found relative to this file location
-    try:
-        from src.transformers.base import Transformer  # Try standard project structure
-    except ImportError:
-        # If the standard import path doesn't work, try relative import
-        import sys
-        from pathlib import Path
-
-        parent_dir = str(Path(__file__).resolve().parent.parent)
-        if parent_dir not in sys.path:
-            sys.path.insert(0, parent_dir)
-        from base import Transformer
-
-    # Import the GoogleAIClient
-    try:
-        from src.transformers.llm.client import (
-            GoogleAIClient,  # Try standard project structure
-        )
-    except ImportError:
-        # If the standard import path doesn't work, try relative import
-        current_dir = str(Path(__file__).resolve().parent)
-        if current_dir not in sys.path:
-            sys.path.insert(0, current_dir)
-        try:
-            from client import GoogleAIClient
-        except ImportError:
-            logger.error(
-                "Could not import GoogleAIClient. Make sure the client module is accessible."
-            )
-
-except Exception as e:
-    logger.error(f"Error during imports: {str(e)}")
 
 
 class LLMTransformer(Transformer):
@@ -97,24 +35,32 @@ class LLMTransformer(Transformer):
                 - max_retries: Maximum number of retries on failure (default: 3)
         """
         self.client = None
-        # Check if API key is available
-        api_key = os.environ.get("GOOGLE_API_KEY")
-        if not api_key:
-            logger.warning("GOOGLE_API_KEY not found in environment variables")
-        else:
-            logger.info(f"GOOGLE_API_KEY found: {api_key[:4]}...{api_key[-4:]}")
-
-        # Initialize the configuration with defaults
-        self.config = config or {}
-        self._validate_config()
+        super().__init__(config)
 
     def _validate_config(self) -> None:
         """Validate the configuration for LLM transformer."""
-
         # Set default configuration values
         self.config.setdefault("api_key", os.environ.get("GOOGLE_API_KEY"))
         self.config.setdefault("model_name", "gemini-2.0-flash")
+        self.config.setdefault("system_instruction", None)
+        self.config.setdefault("batch_size", 100)
+        self.config.setdefault("max_retries", 3)
 
+        # Check for API key
+        if not self.config["api_key"]:
+            logger.warning("No API key provided in config or environment")
+            raise ValueError(
+                "API key is required. Set it in config or GOOGLE_API_KEY environment variable"
+            )
+
+        # Find prompt path
+        self._setup_prompt_path()
+
+        # Initialize the LLM client
+        self._initialize_client()
+
+    def _setup_prompt_path(self) -> None:
+        """Set up the prompt path from config or look in standard locations."""
         # Look for prompt in standard locations
         prompt_path = None
 
@@ -122,9 +68,15 @@ class LLMTransformer(Transformer):
         if "prompt_path" in self.config and Path(self.config["prompt_path"]).exists():
             prompt_path = Path(self.config["prompt_path"])
         else:
-            # Try to find the prompt in standard locations
-            project_root = find_project_root()
-            if project_root:
+            # Try to find the prompt in standard locations - project root is where .env is located
+            project_root = Path.cwd()
+            while (
+                not (project_root / ".env").exists()
+                and project_root != project_root.parent
+            ):
+                project_root = project_root.parent
+
+            if (project_root / ".env").exists():
                 # Try resources/prompts directory
                 resources_path = (
                     project_root / "resources" / "prompts" / "wordlist-generation.md"
@@ -138,11 +90,8 @@ class LLMTransformer(Transformer):
         else:
             logger.warning("No prompt template found, will use default prompt")
 
-        self.config.setdefault("system_instruction", None)
-        self.config.setdefault("batch_size", 100)
-        self.config.setdefault("max_retries", 3)
-
-        # Initialize the LLM client
+    def _initialize_client(self) -> None:
+        """Initialize the Google AI client."""
         try:
             self.client = GoogleAIClient(
                 api_key=self.config["api_key"],
@@ -170,32 +119,109 @@ class LLMTransformer(Transformer):
         if not words:
             return
 
+        # Validate input words
+        self._validate_input_words(words)
+
         # Process words in batches to avoid exceeding token limits
         batch_size = self.config["batch_size"]
         for i in range(0, len(words), batch_size):
             batch = words[i : i + batch_size]
+            yield from self._process_batch(batch)
 
-            try:
-                # Use the words as context for the LLM
-                context = {
-                    "words": batch,
-                    "instructions": "Generate variations, combinations, and contextually relevant words based on these input words. Focus on creating password-like patterns.",
-                }
+    def _validate_input_words(self, words: List[str]) -> None:
+        """
+        Validate the input words to ensure they are strings and not empty.
 
-                # Generate words using the LLM
-                generated_words = self.client.generate_wordlist(
-                    context=context,
-                    system_instruction=self.config["system_instruction"],
-                    max_retries=self.config["max_retries"],
-                )
+        Args:
+            words: List of input words to validate
 
-                # Return generated words
-                for word in generated_words:
-                    yield word
+        Raises:
+            ValueError: If any word is not a string or is empty
+        """
+        if not all(isinstance(word, str) for word in words):
+            raise ValueError("All input words must be strings")
 
-            except Exception as e:
-                logger.error(f"Failed to transform words using LLM: {str(e)}")
-                raise ValueError(f"Failed to transform words using LLM: {str(e)}")
+        if any(not word.strip() for word in words):
+            raise ValueError("Input words cannot be empty strings")
+
+    def _process_batch(self, batch: List[str]) -> Iterator[str]:
+        """
+        Process a batch of words with the LLM client.
+
+        Args:
+            batch: A batch of words to process
+
+        Returns:
+            Iterator[str]: An iterator over generated words
+
+        Raises:
+            ValueError: If the batch processing fails
+        """
+        try:
+            # Use the words as context for the LLM
+            context = self._create_context(batch)
+
+            # Generate words using the LLM
+            generated_words = self.client.generate_wordlist(
+                context=context,
+                system_instruction=self.config["system_instruction"],
+                max_retries=self.config["max_retries"],
+            )
+
+            # Validate generated words
+            validated_words = self._validate_generated_words(generated_words)
+
+            # Return generated words
+            for word in validated_words:
+                yield word
+
+        except Exception as e:
+            logger.error(f"Failed to transform words using LLM: {str(e)}")
+            raise ValueError(f"Failed to transform words using LLM: {str(e)}")
+
+    def _create_context(self, batch: List[str]) -> Dict[str, Any]:
+        """
+        Create context dictionary for the LLM request.
+
+        Args:
+            batch: A batch of words to include in the context
+
+        Returns:
+            Dict[str, Any]: Context dictionary for the LLM
+        """
+        return {
+            "words": batch,
+            "instructions": "Generate variations, combinations, and contextually relevant words based on these input words. Focus on creating password-like patterns.",
+        }
+
+    def _validate_generated_words(self, words: List[str]) -> List[str]:
+        """
+        Validate generated words from the LLM.
+
+        Args:
+            words: List of words generated by the LLM
+
+        Returns:
+            List[str]: Validated words
+
+        Raises:
+            ValueError: If the generated words are invalid
+        """
+        if not isinstance(words, list):
+            raise ValueError(f"Expected a list of words but got {type(words)}")
+
+        # Filter out any non-string values
+        string_words = [word for word in words if isinstance(word, str)]
+
+        # Filter out empty strings
+        valid_words = [word for word in string_words if word.strip()]
+
+        if len(valid_words) < len(words):
+            logger.warning(
+                f"Filtered out {len(words) - len(valid_words)} invalid words"
+            )
+
+        return valid_words
 
     def get_metadata(self) -> Dict[str, Any]:
         """

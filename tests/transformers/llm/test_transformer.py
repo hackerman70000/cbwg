@@ -13,7 +13,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Try to find and load .env file
+# Load environment variables once
 project_root = Path(__file__).resolve().parent.parent.parent.parent
 env_path = project_root / ".env"
 if env_path.exists():
@@ -23,14 +23,8 @@ else:
     logger.warning(f"No .env file found at {env_path}")
 
 # Import the necessary modules
-try:
-    from src.transformers.llm.client import GoogleAIClient
-    from src.transformers.llm.transformer import LLMTransformer
-except ImportError:
-    logger.error(
-        "Failed to import required modules. Make sure the project structure is correct."
-    )
-    raise
+from src.transformers.llm.client import GoogleAIClient
+from src.transformers.llm.transformer import LLMTransformer
 
 
 class TestLLMTransformer(unittest.TestCase):
@@ -53,20 +47,25 @@ class TestLLMTransformer(unittest.TestCase):
         self.api_key = os.environ.get("GOOGLE_API_KEY")
 
         # Path to the prompt template
-        self.prompt_path = (
-            project_root / "resources" / "prompts" / "wordlist-generation.md"
-        )
-        if not self.prompt_path.exists():
-            logger.warning(f"Prompt template not found at {self.prompt_path}")
-
-            # For testing, we'll create a temporary test prompt file
-            self.test_prompt_path = self.output_dir / "test_prompt.md"
-            self._create_test_prompt(self.test_prompt_path)
-            logger.info(f"Created test prompt at {self.test_prompt_path}")
-            self.prompt_path = self.test_prompt_path
+        self.prompt_path = self._find_or_create_prompt_template()
 
         # Sample mock response
         self.mock_response = ["p@ssw0rd", "s3curity", "auth123", "password123"]
+
+    def _find_or_create_prompt_template(self):
+        """Find the prompt template or create a test one if not found."""
+        prompt_path = project_root / "resources" / "prompts" / "wordlist-generation.md"
+
+        if not prompt_path.exists():
+            logger.warning(f"Prompt template not found at {prompt_path}")
+
+            # For testing, we'll create a temporary test prompt file
+            test_prompt_path = self.output_dir / "test_prompt.md"
+            self._create_test_prompt(test_prompt_path)
+            logger.info(f"Created test prompt at {test_prompt_path}")
+            return test_prompt_path
+
+        return prompt_path
 
     def _create_test_prompt(self, path):
         """Create a simple test prompt at the specified path."""
@@ -131,6 +130,10 @@ class TestLLMTransformer(unittest.TestCase):
         self.assertEqual(len(result), 4)
         self.assertIn("p@ssw0rd", result)
 
+    @unittest.skipIf(
+        not os.environ.get("GOOGLE_API_KEY"),
+        "Skipping real API test when API key is not available",
+    )
     def test_transform_real_api(self):
         """Test the transform method with the actual API if credentials are available."""
         if not self.api_key:
@@ -163,6 +166,32 @@ class TestLLMTransformer(unittest.TestCase):
         except Exception as e:
             logger.error(f"Error during real API test: {str(e)}")
             self.fail(f"Real API test failed: {str(e)}")
+
+    @patch("src.transformers.llm.client.GoogleAIClient.generate_wordlist")
+    def test_validation_of_empty_input(self, mock_generate):
+        """Test validation of empty input."""
+        # Initialize transformer
+        transformer = LLMTransformer(
+            config={
+                "api_key": "mock_api_key",
+                "prompt_path": str(self.prompt_path),
+            }
+        )
+
+        # Test with empty words list
+        result = list(transformer.transform([]))
+        self.assertEqual(result, [])
+
+        # Test with list containing empty string
+        with self.assertRaises(ValueError):
+            list(transformer.transform(["valid", ""]))
+
+        # Test with non-string input
+        with self.assertRaises(ValueError):
+            list(transformer.transform(["valid", 123]))
+
+        # Verify mock wasn't called for invalid inputs
+        mock_generate.assert_not_called()
 
     @patch("src.transformers.llm.client.GoogleAIClient.generate_wordlist")
     def test_full_workflow(self, mock_generate):
