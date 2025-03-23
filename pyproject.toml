@@ -9,3 +9,6 @@ dependencies = [
     "google-genai>=1.7.0",
     "pytest>=8.3.5",
 ]
+
+[tool.uv.workspace]
+members = ["t-engine"]
