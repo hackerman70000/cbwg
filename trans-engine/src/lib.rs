@@ -1,11 +1,10 @@
 
 use parser::parse_line;
+use rayon::prelude::*;
 use pyo3::prelude::*;
-mod lang;
-mod parser;
-mod transforms;
-
-// TODO: fix arrow typing
+pub mod lang;
+pub mod parser;
+pub mod transforms;
 
 #[pyfunction]
 pub fn run(rules: Vec<String>, words: Vec<String>) -> PyResult<Vec<String>> {
@@ -15,14 +14,19 @@ pub fn run(rules: Vec<String>, words: Vec<String>) -> PyResult<Vec<String>> {
     let mut output_array: Vec<String> = Vec::new();
     for element in rules.iter() {
         match parse_line(&mut element.to_string().as_str()) {
-            Ok(rule) => {
-                for values in words.iter() {
-                    // perf issue: clone is expensive
-                    match lang::Rule::run_all(rule.clone(), values.to_string()) {
-                        Some(result) => output_array.push(result),
-                        None => {}
-                    }
-                }
+            Ok(parsed_rules) => {
+
+                let rules_slice = &lang::Rule::simplify(parsed_rules)[..];
+
+                // Parallel processing of words
+                let thread_results: Vec<String> = words.par_iter()
+                    .filter_map(|values| {
+                        // perf issue: clone is expensive
+                        lang::Rule::run_all(rules_slice, values.to_string())
+                    })
+                    .collect();
+
+                output_array.extend(thread_results);
             }
             Err(e) => {
                 println!("Error: {}", e);

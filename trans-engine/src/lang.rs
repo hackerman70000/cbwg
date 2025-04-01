@@ -1,7 +1,6 @@
 use itertools::Itertools;
-use stringzilla::sz;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
 pub enum Rule {
     /// Passthrough
     /// example: p@assW0rd -> p@assW0rd
@@ -15,7 +14,7 @@ pub enum Rule {
 }
 
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
 pub enum TransformRule {
     // John the Ripper/passwords pro rules
     /// Lowercase the entire input string
@@ -85,20 +84,20 @@ pub enum TransformRule {
     // TODO: titlecase rules
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
 pub enum Truncate {
     Left,
     Right,
     To(usize)
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
 pub enum Rotation {
     Left,
     Right,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone,  PartialEq, PartialOrd, Eq, Ord, Hash)]
 pub enum RejectRule {
     ShorterThan(usize),
     LongerThan(usize),
@@ -125,7 +124,7 @@ impl Rule {
             Rule::End => Some(input),
         }
     }
-    pub fn run_all(rules: Vec<Rule>, input: String) -> Option<String> {
+    pub fn run_all<'a>(rules: impl  IntoIterator<Item = &'a Rule>, input: String) -> Option<String> {
         let mut output = Some(input);
         for rule in rules {
             output = rule.run(output.unwrap());
