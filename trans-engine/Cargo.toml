@@ -8,6 +8,7 @@ name = "_core"
 # "cdylib" is necessary to produce a shared library for Python to import from.
 # "rlib" is necessary to produce a Rust-linkable library for tests
 crate-type = ["cdylib", "rlib"]
+path = "src/python.rs"
 
 
 
