@@ -39,9 +39,9 @@ fn test_basic_transform_rules() {
         
         "pASSWORD123".to_string(),  // C -> Password123 -> pASSWORD123
         "eXAMPLE".to_string(),      // C -> EXAMPLE -> eXAMPLE
-        "Mixed".to_string(),        // C -> mixed -> mIXED
+        "mIXED".to_string(),        // C -> mixed -> mIXED
         
-        "PaSsWoRd123".to_string(),  // t -> Password123 -> PaSsWoRd123
+        "pASSWORD123".to_string(),  // t -> Password123 -> pASSWORD123
         "example".to_string(),      // t -> EXAMPLE -> example
         "MIXED".to_string(),        // t -> mixed -> MIXED
     ];
