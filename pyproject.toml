@@ -11,4 +11,4 @@ dependencies = [
 ]
 
 [tool.uv.workspace]
-members = ["t-engine"]
+members = ["trans-engine"]
