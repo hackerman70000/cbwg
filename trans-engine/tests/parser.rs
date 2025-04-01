@@ -9,7 +9,7 @@ use _core::lang::{Rule, TransformRule, RejectRule, Rotation, Truncate};
 use _core::parser::parse_line;
 
 #[test]
-fn test_basic_transform_rules() {
+fn parse_basic_transform_rules() {
     let mut input = "luc";
     let result = parse_line(&mut input).unwrap();
     assert_eq!(result, vec![
@@ -20,7 +20,7 @@ fn test_basic_transform_rules() {
 }
 
 #[test]
-fn test_append_prepend_rules() {
+fn parse_append_prepend_rules() {
     let mut input = "$1^A";
     let result = parse_line(&mut input).unwrap();
     assert_eq!(result, vec![
@@ -30,7 +30,7 @@ fn test_append_prepend_rules() {
 }
 
 #[test]
-fn test_rules_with_numeric_parameters() {
+fn parse_rules_with_numeric_parameters() {
     let mut input = "T2D3'4";
     let result = parse_line(&mut input).unwrap();
     assert_eq!(result, vec![
@@ -41,7 +41,7 @@ fn test_rules_with_numeric_parameters() {
 }
 
 #[test]
-fn test_range_based_rules() {
+fn parse_range_based_rules() {
     let mut input = "x1:5O37*2:4";
     let result = parse_line(&mut input).unwrap();
     assert_eq!(result, vec![
@@ -52,7 +52,7 @@ fn test_range_based_rules() {
 }
 
 #[test]
-fn test_multi_digit_ranges() {
+fn parse_multi_digit_ranges() {
     let mut input = "x10:15O25:30*11:14";
     let result = parse_line(&mut input).unwrap();
     assert_eq!(result, vec![
@@ -62,7 +62,7 @@ fn test_multi_digit_ranges() {
     ]);
 }
 #[test]
-fn test_multi_digit_ranges_without_separator() {
+fn parse_multi_digit_ranges_without_separator() {
     let mut input = "x1015O2530*1114";
     let result = parse_line(&mut input);
     assert!(result.is_err());
@@ -70,7 +70,7 @@ fn test_multi_digit_ranges_without_separator() {
 
 
 #[test]
-fn test_character_manipulation_rules() {
+fn parse_character_manipulation_rules() {
     let mut input = "sabk{r}";
     let result = parse_line(&mut input).unwrap();
     assert_eq!(result, vec![
@@ -83,7 +83,7 @@ fn test_character_manipulation_rules() {
 }
 
 #[test]
-fn test_duplication_rules() {
+fn parse_duplication_rules() {
     let mut input = "dqfz3Z2y4Y5";
     let result = parse_line(&mut input).unwrap();
     assert_eq!(result, vec![
@@ -98,7 +98,7 @@ fn test_duplication_rules() {
 }
 
 #[test]
-fn test_ascii_manipulation_rules() {
+fn parse_ascii_manipulation_rules() {
     let mut input = "+1-2.3,4L2R3";
     let result = parse_line(&mut input).unwrap();
     assert_eq!(result, vec![
@@ -112,7 +112,7 @@ fn test_ascii_manipulation_rules() {
 }
 
 #[test]
-fn test_truncate_rules() {
+fn parse_truncate_rules() {
     let mut input = "[]'5";
     let result = parse_line(&mut input).unwrap();
     assert_eq!(result, vec![
@@ -123,7 +123,7 @@ fn test_truncate_rules() {
 }
 
 #[test]
-fn test_reject_rules() {
+fn parse_reject_rules() {
     let mut input = "<8>3_6!a/b(c)d=2e%3f";
     let result = parse_line(&mut input).unwrap();
     assert_eq!(result, vec![
@@ -140,14 +140,14 @@ fn test_reject_rules() {
 }
 
 #[test]
-fn test_no_op_rule() {
+fn parse_no_op_rule() {
     let mut input = ":";
     let result = parse_line(&mut input).unwrap();
     assert_eq!(result, vec![Rule::NoOp]);
 }
 
 #[test]
-fn test_complex_rule_combination() {
+fn parse_complex_rule_combination() {
     let mut input = "luct$1^A[D2x1:3O45sa!";
     let result = parse_line(&mut input).unwrap();
     assert_eq!(result, vec![
@@ -166,7 +166,7 @@ fn test_complex_rule_combination() {
 }
 
 #[test]
-fn test_multiple_lines() {
+fn parse_multiple_lines() {
     let mut input = "lu\nc";
     let result = parse_line(&mut input).unwrap();
     assert_eq!(result, vec![
@@ -181,14 +181,14 @@ fn test_multiple_lines() {
 }
 
 #[test]
-fn test_empty_line() {
+fn parse_empty_line() {
     let mut input = "\n";
     let result = parse_line(&mut input).unwrap();
     assert!(result.is_empty());
 }
 
 #[test]
-fn test_whitespace_handling() {
+fn parse_whitespace_handling() {
     // Note: In hashcat, whitespace is not allowed in rules, but our parser should handle it
     let mut input = "l u\tc";
     let result = parse_line(&mut input);
@@ -203,7 +203,7 @@ fn test_whitespace_handling() {
 
 
 #[test]
-fn test_nonexistent_rules() {
+fn parse_nonexistent_rules() {
     let mut input = "luc#";
     let result = parse_line(&mut input);
     assert!(result.is_err());
@@ -215,7 +215,7 @@ fn test_nonexistent_rules() {
 }
 
 #[test]
-fn test_non_ascii_rules() {
+fn parse_non_ascii_rules() {
     let mut input = "lüc";
     let result = parse_line(&mut input);
     assert!(result.is_err());
