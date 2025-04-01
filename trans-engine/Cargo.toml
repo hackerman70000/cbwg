@@ -13,15 +13,10 @@ path = "src/python.rs"
 
 
 [dependencies]
-arrow = { version = "54.3.0", features = ["pyarrow", "pyo3"] }
-arrow-array = "54.3.0"
-arrow-schema = "54.3.0"
-arrow-select = "54.3.0"
 itertools = "0.14.0"
 # "extension-module" tells pyo3 we want to build an extension module (skips linking against libpython.so)
 # "abi3-py39" tells pyo3 (and maturin) to build using the stable ABI with minimum Python version 3.9
-pyo3 = { version = "0.23.3", features = ["extension-module", "abi3-py312"] }
-pyo3-arrow = "0.7.2"
+pyo3 = { version = "0.23.3", features = ["abi3-py312"] }
 rayon = "1.10.0"
 stringzilla = "3.12.3"
 winnow = { version = "0.7.4", features = ["simd"] }

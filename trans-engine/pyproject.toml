@@ -16,6 +16,7 @@ trans-engine = "trans_engine:main"
 module-name = "trans_engine._core"
 python-packages = ["trans_engine"]
 python-source = "src"
+cargo-extra-args = "--features extension-module"
 
 [build-system]
 requires = ["maturin>=1.0,<2.0"]
