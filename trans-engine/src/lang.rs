@@ -179,7 +179,7 @@ impl TransformRule {
                 }
             },
             TransformRule::Reverse => input.chars().rev().collect(),
-            TransformRule::Duplicate(n) => input.repeat(n.unwrap_or(2) as usize),
+            TransformRule::Duplicate(n) => input.repeat(1 + n.unwrap_or(1) as usize),
             TransformRule::Reflect => input.chars().chain(input.chars().rev()).collect(),
             TransformRule::Rotate(rotation) => {
                 match rotation {
@@ -213,12 +213,10 @@ impl TransformRule {
                 input.chars().take(*n).chain(input.chars().skip(*n + 1)).collect()
             },
             TransformRule::Extract(a, b) => {
-                let range =  (a.min(b), a.max(b));
-                input.chars().skip(*range.0).take(*range.1 - *range.0).collect()
+                input.chars().skip(*a).take(*b).collect()
             },
             TransformRule::Omit(a, b) => {
-                let range =  (a.min(b), a.max(b));
-                input.chars().take(*range.0).chain(input.chars().skip(*range.1)).collect()
+                input.chars().take(*a).chain(input.chars().skip(*a+*b)).collect()
             },
             TransformRule::Insert(n, s) => {
                 input.chars().take(*n).chain(s.chars()).chain(input.chars().skip(*n)).collect()
@@ -319,63 +317,63 @@ impl RejectRule {
     pub fn run(&self, input: String) -> Option<String> {
         match self {
             RejectRule::ShorterThan(n) => {
-                if input.len() < *n {
+                if input.len() >= *n {
                     Some(input)
                 } else {
                     None
                 }
             },
             RejectRule::LongerThan(n) => {
-                if input.len() > *n {
+                if input.len() <= *n {
                     Some(input)
                 } else {
                     None
                 }
             },
             RejectRule::NotEqualTo(n) => {
-                if input.len() != *n {
+                if input.len() == *n {
                     Some(input)
                 } else {
                     None
                 }
             },
             RejectRule::Contains(s) => {
-                if input.contains(s) {
-                    Some(input)
-                } else {
-                    None
-                }
-            },
-            RejectRule::NotContains(s) => {
                 if !input.contains(s) {
                     Some(input)
                 } else {
                     None
                 }
             },
+            RejectRule::NotContains(s) => {
+                if input.contains(s) {
+                    Some(input)
+                } else {
+                    None
+                }
+            },
             RejectRule::NotStartsWith(s) => {
-                if !input.starts_with(s) {
+                if input.starts_with(s) {
                     Some(input)
                 } else {
                     None
                 }
             },
             RejectRule::NotEndsWith(s) => {
-                if !input.ends_with(s) {
+                if input.ends_with(s) {
                     Some(input)
                 } else {
                     None
                 }
             },
             RejectRule::NotEqualAt(n, s) => {
-                if input.chars().skip(*n).take(s.len()).collect::<String>() != *s {
+                if input.chars().skip(*n).take(s.len()).collect::<String>() == *s {
                     Some(input)
                 } else {
                     None
                 }
             },
             RejectRule::ContainsLessThan(n, s) => {
-                if input.matches(s).count() < *n {
+                if input.matches(s).count() >= *n {
                     Some(input)
                 } else {
                     None

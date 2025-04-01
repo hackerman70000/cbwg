@@ -216,7 +216,7 @@ pub fn parse_rule(input: &mut &str) -> ModalResult<Rule> {
         'x' => range_parser.map(|r| Rule::Transform(TransformRule::Extract(r.0,r.1))),
         'O' => range_parser.map(|r| Rule::Transform(TransformRule::Omit(r.0,r.1))),
         'i' => (any, dec_uint).map(|(c, i): (char, usize)| Rule::Transform(TransformRule::Insert(i, c.to_string()))),
-        'o' => (any, dec_uint).map(|(c, i): (char, usize)| Rule::Transform(TransformRule::Overwrite(i, c.to_string()))),
+        'o' => (dec_uint, any).map(|(i, c): (usize, char)| Rule::Transform(TransformRule::Overwrite(i, c.to_string()))),
         '\'' => dec_uint.map(|n| Rule::Transform(TransformRule::Truncate(Truncate::To(n)))),
         's' => (any,any).map(|(a,b): (char,char)| Rule::Transform(TransformRule::Replace(a.to_string(), b.to_string()))),
         '@' => any.map(|c: char| Rule::Transform(TransformRule::Purge(c.to_string()))),
