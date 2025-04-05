@@ -266,14 +266,14 @@ impl TransformRule {
             TransformRule::BitwiseShiftLeft(n) => {
                 input.chars().map(|c| {
                     let mut c = c as u8;
-                    c = c.unbounded_shl(*n as u32);
+                    c = c.checked_shl(*n as u32).unwrap_or_default();
                     c as char
                 }).collect()
             },
             TransformRule::BitwiseShiftRight(n) => {
                 input.chars().map(|c| {
                     let mut c = c as u8;
-                    c = c.unbounded_shr(*n as u32);
+                    c = c.checked_shr(*n as u32).unwrap_or_default();
                     c as char
                 }).collect()
             },
