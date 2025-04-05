@@ -186,7 +186,7 @@ impl TransformRule {
                 }
             },
             TransformRule::Reverse => input.chars().rev().collect(),
-            TransformRule::Duplicate(n) => input.repeat(1 + n.unwrap_or(1) as usize),
+            TransformRule::Duplicate(n) => input.repeat(n.unwrap_or(1).saturating_add(1)),
             TransformRule::Reflect => input.chars().chain(input.chars().rev()).collect(),
             TransformRule::Rotate(rotation) => {
                 match rotation {
@@ -217,19 +217,19 @@ impl TransformRule {
                 }).collect()
             },
             TransformRule::Delete(n) => {
-                input.chars().take(*n).chain(input.chars().skip(*n + 1)).collect()
+                input.chars().take(*n).chain(input.chars().skip(n.saturating_add(1))).collect()
             },
             TransformRule::Extract(a, b) => {
                 input.chars().skip(*a).take(*b).collect()
             },
             TransformRule::Omit(a, b) => {
-                input.chars().take(*a).chain(input.chars().skip(*a + *b)).collect()
+                input.chars().take(*a).chain(input.chars().skip(a.saturating_add(*b))).collect()
             },
             TransformRule::Insert(n, s) => {
                 input.chars().take(*n).chain(s.chars()).chain(input.chars().skip(*n)).collect()
             },
             TransformRule::Overwrite(n, s) => {
-                input.chars().take(*n).chain(s.chars()).chain(input.chars().skip(*n + s.len())).collect()
+                input.chars().take(*n).chain(s.chars()).chain(input.chars().skip(n.saturating_add(s.len()))).collect()
             },
             TransformRule::Truncate(n) => {
                 match n {
@@ -266,14 +266,14 @@ impl TransformRule {
             TransformRule::BitwiseShiftLeft(n) => {
                 input.chars().map(|c| {
                     let mut c = c as u8;
-                    c = c << *n;
+                    c = c.unbounded_shl(*n as u32);
                     c as char
                 }).collect()
             },
             TransformRule::BitwiseShiftRight(n) => {
                 input.chars().map(|c| {
                     let mut c = c as u8;
-                    c = c >> *n;
+                    c = c.unbounded_shr(*n as u32);
                     c as char
                 }).collect()
             },
