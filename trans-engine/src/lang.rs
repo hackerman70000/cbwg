@@ -127,7 +127,10 @@ impl Rule {
     pub fn run_all<'a>(rules: impl  IntoIterator<Item = &'a Rule>, input: String) -> Option<String> {
         let mut output = Some(input);
         for rule in rules {
-            output = rule.run(output.unwrap());
+            output = match output {
+                Some(output) => Some(rule.run(output)?),
+                None => None,
+            };
             if output.is_none() {
                 return None;
             }
@@ -160,22 +163,26 @@ impl TransformRule {
                         input.char_indices().map(|(i, c)| {
                             if i == *n {
                                 if c.is_uppercase() {
-                                    c.to_lowercase().next().unwrap()
+                                    c.to_lowercase().next()
                                 } else {
-                                    c.to_uppercase().next().unwrap()
+                                    c.to_uppercase().next()
                                 }
                             } else {
-                                c
+                                Some(c)
                             }
-                        }).collect()
+                        })
+                        .filter_map(std::convert::identity)
+                        .collect()
                     },
                     None => input.chars().map(|c| {
                         if c.is_uppercase() {
-                            c.to_lowercase().next().unwrap()
+                            c.to_lowercase().next()
                         } else {
-                            c.to_uppercase().next().unwrap()
+                            c.to_uppercase().next()
                         }
-                    }).collect()
+                    })
+                    .filter_map(std::convert::identity)
+                    .collect()
                 }
             },
             TransformRule::Reverse => input.chars().rev().collect(),
@@ -185,12 +192,12 @@ impl TransformRule {
                 match rotation {
                     Rotation::Left => {
                         let mut chars = input.chars();
-                        let first = chars.next().unwrap();
+                        let first = chars.next().unwrap_or_default();
                         chars.collect::<String>() + &first.to_string()
                     },
                     Rotation::Right => {
                         let mut chars = input.chars().rev();
-                        let first = chars.next().unwrap();
+                        let first = chars.next().unwrap_or_default();
                         first.to_string() + &chars.rev().collect::<String>()
                     },
                 }
@@ -201,9 +208,9 @@ impl TransformRule {
                 let range =  (a.min(b), a.max(b));
                 input.chars().enumerate().map(|(i, c)| {
                     if i == *range.0 {
-                        input.chars().nth(*range.1).unwrap()
+                        input.chars().nth(*range.1).unwrap_or_default()
                     } else if i == *range.1 {
-                        input.chars().nth(*range.0).unwrap()
+                        input.chars().nth(*range.0).unwrap_or_default()
                     } else {
                         c
                     }
@@ -216,7 +223,7 @@ impl TransformRule {
                 input.chars().skip(*a).take(*b).collect()
             },
             TransformRule::Omit(a, b) => {
-                input.chars().take(*a).chain(input.chars().skip(*a+*b)).collect()
+                input.chars().take(*a).chain(input.chars().skip(*a + *b)).collect()
             },
             TransformRule::Insert(n, s) => {
                 input.chars().take(*n).chain(s.chars()).chain(input.chars().skip(*n)).collect()
@@ -227,7 +234,7 @@ impl TransformRule {
             TransformRule::Truncate(n) => {
                 match n {
                     Truncate::Left => input.chars().skip(1).collect(),
-                    Truncate::Right => input.chars().take(input.len() - 1).collect(),
+                    Truncate::Right => input.chars().take(input.len().saturating_sub(1)).collect(),
                     Truncate::To(n) => input.chars().take(*n).collect(),
                 }
             },
@@ -246,14 +253,14 @@ impl TransformRule {
             },
             TransformRule::SwapFront => {
                 let mut chars = input.chars();
-                let first = chars.next().unwrap();
-                let second = chars.next().unwrap();
+                let first = chars.next().unwrap_or_default();
+                let second = chars.next().unwrap_or_default();
                 second.to_string() + &first.to_string() + &chars.collect::<String>()
             },
             TransformRule::SwapBack => {
                 let mut chars = input.chars().rev();
-                let first = chars.next().unwrap();
-                let second = chars.next().unwrap();
+                let first = chars.next().unwrap_or_default();
+                let second = chars.next().unwrap_or_default();
                 chars.rev().collect::<String>() + &first.to_string() + &second.to_string()
             },
             TransformRule::BitwiseShiftLeft(n) => {
@@ -287,7 +294,7 @@ impl TransformRule {
             TransformRule::ReplaceWithNext(n) => {
                 input.chars().enumerate().map(|(i, c)| {
                     if i == *n {
-                        input.chars().nth(i + 1).unwrap()
+                        input.chars().nth(i + 1).unwrap_or_default()
                     } else {
                         c
                     }
@@ -296,7 +303,7 @@ impl TransformRule {
             TransformRule::ReplaceWithPrev(n) => {
                 input.chars().enumerate().map(|(i, c)| {
                     if i == *n {
-                        input.chars().nth(i - 1).unwrap()
+                        input.chars().nth(i.saturating_sub(1)).unwrap_or_default()
                     } else {
                         c
                     }
