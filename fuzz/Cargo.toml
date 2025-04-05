@@ -12,7 +12,7 @@ arbitrary = { version = "1", features = ["derive"] }
 libfuzzer-sys = "0.4"
 
 [dependencies.trans_engine]
-path = ".."
+path = "../trans-engine"
 
 [[bin]]
 name = "engine"
