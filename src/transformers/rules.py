@@ -83,7 +83,29 @@ class RuleTransformer(Transformer):
 
         if self.config["rules"]:
             self.rules.extend(self.config["rules"])
-    
+
+    def _process_batch(self, words: List[str]) -> Iterator[str]:
+        """
+        Process a batch of words using hashcat rules.
+
+        Args:
+            batch: A batch of words to process
+
+        Returns:
+            Iterator[str]: An iterator over generated words
+
+        Raises:
+            ValueError: If the batch processing fails
+        """ 
+        try:
+            yield from hashcat_run(
+                rules=self.rules,
+                words=words,
+            )
+        except Exception as e:
+            logger.error(f"Batch processing failed: {str(e)}")
+            raise ValueError(f"Batch processing failed: {str(e)}")
+        
     def transform(self, words: List[str]) -> Iterator[str]:
         """
         Apply the rules to the input words and yield transformed words.
@@ -105,10 +127,7 @@ class RuleTransformer(Transformer):
         batch_size = self.config["batch_size"]
         for i in range(0, len(words), batch_size):
             batch = words[i : i + batch_size]
-            yield from hashcat_run(
-                rules=self.rules,
-                words=batch,
-            )
+            yield from self._process_batch(batch)
     def _validate_input_words(self, words: List[str]) -> None:
         """
         Validate the input words to ensure they are strings and not empty.
