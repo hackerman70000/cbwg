@@ -1,0 +1,3 @@
+[workspace]
+members = ["trans-engine"]
+resolver = "2"
