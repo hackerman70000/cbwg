@@ -21,4 +21,4 @@ jobs:
         cargo install cargo-fuzz
     - name: Run Fuzzing
       run: |
-        cargo fuzz run engine -- -max_total_time=180 -rss_limit_mb=4096
+        cargo fuzz run engine -- -max_total_time=180 -rss_limit_mb=4096 -fork=2
