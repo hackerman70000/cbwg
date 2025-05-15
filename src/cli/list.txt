@@ -1,0 +1,10 @@
+chair
+floor
+tool
+computer
+screen
+screwdriver
+car
+air
+tablet
+pill
