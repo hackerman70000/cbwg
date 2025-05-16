@@ -47,11 +47,16 @@ def main():
     else:
         transformer = RuleTransformer()
     
+    
     words = []
     for data in source.get_data():
         for word in text.parse(data):
             words.append(word)
-    print(words)
+    results = list(transformer.transform(words))
+    for i in range(0, 30):
+        print(results[i])
+    
+    
 
     
     
@@ -77,22 +82,31 @@ def parse_config(filename, type):
             index = line.index("=")
             key = line[:index]
             value = line[index + 1:]
-            if not validate(key, type):
-                return None
+            validate_result = validate(key, type) 
+            if validate_result:
+                match validate_result:
+                    case 2:
+                        config[key] = bool(value)
+                    case 1:
+                        config[key] = value # already a string
+                    case 2:
+                        config[key] = int(value)
             else:
-                config[key] = value
+                return None
     return config
         
             
 
 def validate(key, config_type):
-    allowed_source = ["encoding", "chunk_size", "binary_mode"]
+    # dicts, for casting: 2 - boolean, 1 - string, 0 - int
+    allowed_source = {"binary_mode" : 2, "encoding" : 1, "chunk_size" : 0}
     allowed_parser = ["min_length", "max_length", "pattern", "include_numbers", "preserve_case", "exclude_words"]
     allowed_rule = ["rules_path", "batch_size", "verbose_logging", "rules"]
     match config_type:
         case "source":
-            if key not in  allowed_source:
-                return False            
+            if key not in allowed_source:
+                return None
+            return allowed_source[key]                      
 
         case "parser":
             return False if key not in  allowed_parser else True
