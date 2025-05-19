@@ -1,0 +1,6 @@
+rules_path: /home/jan/Documents/BOT/resources/rules2
+batch_size: 5
+verbose_logging: False
+rules:
+  - "$8"
+  - "$p"

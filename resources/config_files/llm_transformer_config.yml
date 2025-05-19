@@ -1,0 +1,4 @@
+model_name: "gemini-2.0-flash"
+batch_size: 100
+max_retries: 3
+verbose_logging: true
