@@ -204,7 +204,7 @@ fn parse_whitespace_handling() {
 
 #[test]
 fn parse_nonexistent_rules() {
-    let mut input = "luc#";
+    let mut input = "luc|";
     let result = parse_line(&mut input);
     assert!(result.is_err());
 

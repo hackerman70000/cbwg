@@ -19,7 +19,7 @@
 use winnow::prelude::*;
 use winnow::Parser;
 use winnow::ascii::dec_uint;
-use winnow::token::{one_of,any,literal};
+use winnow::token::{one_of,any,literal,rest};
 use winnow::combinator::{dispatch,empty,fail,alt,separated,repeat,terminated,eof};
 
 use crate::lang::*;
@@ -195,6 +195,7 @@ pub fn range_parser(input: &mut &str) -> ModalResult<(usize, usize)> {
 /// ```
 pub fn parse_rule(input: &mut &str) -> ModalResult<Rule> {
     dispatch! { any;
+        '#' => rest.value(Rule::NoOp),
         ':' => empty.value(Rule::NoOp),
         'l' => empty.value(Rule::Transform(TransformRule::Lowercase)),
         'u' => empty.value(Rule::Transform(TransformRule::Uppercase)),
