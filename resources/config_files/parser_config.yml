@@ -1,0 +1,10 @@
+min_length: 5
+max_length: 10
+pattern: '[a-zA-Z]+'
+include_numbers: False
+preserve_case: False
+exclude_words:
+  - screen
+  - law
+  - lawn
+  - desk
