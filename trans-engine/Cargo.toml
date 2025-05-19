@@ -1,0 +1,25 @@
+[package]
+name = "trans_engine"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "_core"
+# "cdylib" is necessary to produce a shared library for Python to import from.
+# "rlib" is necessary to produce a Rust-linkable library for tests
+crate-type = ["cdylib", "rlib"]
+path = "src/python.rs"
+
+
+
+[dependencies]
+itertools = "0.14.0"
+# "extension-module" tells pyo3 we want to build an extension module (skips linking against libpython.so)
+# "abi3-py312" tells pyo3 (and maturin) to build using the stable ABI with minimum Python version 3.12
+pyo3 = { version = "0.24.1", features = ["abi3-py312"] }
+rayon = "1.10.0"
+stringzilla = "3.12.3"
+winnow = { version = "0.7.4", features = ["simd"] }
+
+[features]
+extension-module = ["pyo3/extension-module"]

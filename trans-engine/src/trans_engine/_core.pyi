@@ -1,0 +1,3 @@
+from __future__ import annotations
+
+def run(rules: list[str], words: list[str]) -> list[str]: ...
