@@ -58,7 +58,6 @@ def main():
             if config:
                 source = FileSource(paths, config)
             else:
-                #print("Error in source-config formatting or types")
                 exit()
         else:
             source = FileSource(paths)
@@ -70,7 +69,6 @@ def main():
                 parser_config = config
                 text = TextParser(parser_config)
             else:
-                #print("Error in parser-config formatting or types")
                 exit()
         else:
             text = TextParser()
@@ -82,7 +80,6 @@ def main():
                 rule_config = config
                 transformer = RuleTransformer(rule_config)
             else:
-                #print("Error in trans-engine-config formatting or types")
                 exit()
         elif args.r:
             path = Path(args.r)
@@ -137,7 +134,6 @@ def validate_dict(dict, config_type) -> bool:
 
         case "parser":
             for key in dict:
-                #print(f'Key: {key}, type: {type(key)}, value: {dict[key]}, value type: {type(dict[key])}')
                 if key not in allowed_parser or not validate_value(dict[key], allowed_parser[key]):
                     print("Error location: parser config file")
                     return False
@@ -145,7 +141,6 @@ def validate_dict(dict, config_type) -> bool:
         
         case "engine":
             for key in dict:
-                #print(f'Key: {key}, type: {type(key)}, value: {dict[key]}, value type: {type(dict[key])}')
                 if key not in allowed_engine or not validate_value(dict[key], allowed_engine[key]):
                     print("Error location: transformation engine config file")
                     return False
@@ -153,7 +148,6 @@ def validate_dict(dict, config_type) -> bool:
         
         case "ai":
             for key in dict:
-                #print(f'Key: {key}, type: {type(key)}, value: {dict[key]}, value type: {type(dict[key])}')
                 if key not in allowed_ai or not validate_value(dict[key], allowed_ai[key]):
                     print("Error location: ai config file")
                     return False
