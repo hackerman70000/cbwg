@@ -279,7 +279,7 @@ fn test_complex_rule_combinations() {
 #[test]
 fn test_error_handling() {
     let invalid_rules = vec![
-        "#".to_string(),         // non-existent rule
+        "|".to_string(),         // non-existent rule
         "x".to_string(),         // missing range parameter
         "T".to_string(),         // missing position parameter
     ];
