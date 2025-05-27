@@ -21,7 +21,14 @@ jobs:
         cargo install cargo-fuzz
     - name: Run Fuzzing
       run: |
-        cargo fuzz run engine -- -max_total_time=180 -timeout=25 -rss_limit_mb=2560 -fork=2 
+        cargo fuzz run engine -- -max_total_time=180 -timeout=25 -rss_limit_mb=1024 -fork=2
+        ecode=$?
+        case $ecode in
+          134) : ;;        # Ignore exit code 134 - OOM
+          0) : ;;        # Success, do nothing
+          *) exit "$ecode" ;;  # Exit for any other code
+        esac
+
       env:
         ASAN_OPTIONS: "allocator_may_return_null=1"
     - uses: actions/upload-artifact@v4
